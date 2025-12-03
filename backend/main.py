@@ -1,10 +1,25 @@
 import pandas as pd
+import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 
+def generate_random_parameters(crop_name):
+    if crop_name not in minmax_values.index:
+        return None
 
+    params = {}
+    for feature in feature_cols:
+        min_val = minmax_values.loc[crop_name][feature]["min"]
+        max_val = minmax_values.loc[crop_name][feature]["max"]
+
+
+        val = random.uniform(min_val, max_val)
+
+        params[feature] = round(float(val), 3)
+
+    return params
 
 df = pd.read_csv("crops.csv", sep=';')
 
@@ -29,6 +44,11 @@ knn.fit(X, y_encoded)
 avg_by_crop = df.groupby("Crop Type")[feature_cols].mean()
 
 average_values = avg_by_crop.to_dict(orient="index")
+
+minmax_values = (
+    df.groupby("Crop Type")[feature_cols]
+      .agg(['min', 'max'])
+)
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
@@ -73,6 +93,53 @@ def suggest():
 def average():
     """Return a JSON of average characteristics per crop."""
     return jsonify(average_values)
+
+@app.route("/sensor", methods=["POST"])
+def sensor():
+    """
+    Expects JSON:
+    {
+        "count": <number of crops>,
+        "crops": ["Wheat", "Rice", ...]
+    }
+
+    Returns random realistic values for each crop:
+    {
+        "results": [
+            { "crop": "Wheat", "parameters": {...} },
+            ...
+        ]
+    }
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Missing or invalid JSON body"}), 400
+
+    count = data.get("count")
+    crops = data.get("crops")
+
+    if not isinstance(count, int) or count <= 0:
+        return jsonify({"error": "'count' must be a positive integer"}), 400
+
+    if not isinstance(crops, list) or not all(isinstance(c, str) for c in crops):
+        return jsonify({"error": "'crops' must be a list of strings"}), 400
+
+
+    valid = [c for c in crops if c in minmax_values.index]
+
+
+    selected = valid[:count]
+
+    results = []
+    for crop in selected:
+        params = generate_random_parameters(crop)
+        if params:
+            results.append({
+                "crop": crop,
+                "parameters": params
+            })
+
+    return jsonify({"results": results})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000, debug=True)
