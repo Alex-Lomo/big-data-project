@@ -1,5 +1,6 @@
 import pandas as pd
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
 
@@ -30,6 +31,7 @@ avg_by_crop = df.groupby("Crop Type")[feature_cols].mean()
 average_values = avg_by_crop.to_dict(orient="index")
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
 @app.route("/suggest", methods=["POST"])
 def suggest():
@@ -73,4 +75,4 @@ def average():
     return jsonify(average_values)
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    app.run(host="0.0.0.0", port=3000, debug=True)

@@ -1,0 +1,45 @@
+:root {
+  font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e6edf3;
+  background-color: #0b1021;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --panel: rgba(12, 18, 39, 0.85);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #cdd4e1;
+  --text-strong: #f8fbff;
+  --muted: #9aa3b5;
+  --blue-500: #5b84ff;
+  --blue-400: #7fa3ff;
+  --amber-500: #f59e0b;
+  --green-500: #22c55e;
+  --yellow-400: #facc15;
+  --red-500: #ef4444;
+  --purple-500: #a855f7;
+  --cyan-500: #22d3ee;
+  --pink-500: #ec4899;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at 10% 10%, rgba(91, 132, 255, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(236, 72, 153, 0.08), transparent 25%),
+    #0b1021;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
