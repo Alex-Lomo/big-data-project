@@ -4,6 +4,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import LabelEncoder
+import os
+from dotenv import load_dotenv
+from databricks_repo import DatabricksConfig, DatabricksRepo
 
 def generate_random_parameters(crop_name):
     if crop_name not in minmax_values.index:
@@ -20,8 +23,38 @@ def generate_random_parameters(crop_name):
         params[feature] = round(float(val), 3)
 
     return params
+def load_crop_data():
+    try:
 
-df = pd.read_csv("crops.csv", sep=';')
+        df = repo.get_all_crops()
+
+        print("Loaded crop data from Databricks")
+        return df
+    except Exception as e:
+        print(f"Databricks unavailable, falling back to CSV: {e}")
+        return pd.read_csv("crops.csv", sep=";")
+
+load_dotenv()
+
+host = os.getenv("DATABRICKS_SERVER_HOSTNAME")
+path = os.getenv("DATABRICKS_HTTP_PATH")
+token = os.getenv("DATABRICKS_TOKEN")
+
+assert host, "Missing DATABRICKS_SERVER_HOSTNAME"
+assert path, "Missing DATABRICKS_HTTP_PATH"
+assert token, "Missing DATABRICKS_TOKEN"
+
+cfg = DatabricksConfig(
+    server_hostname=host,
+    http_path=path,
+    access_token=token,
+    catalog="workspace",
+    schema="default"
+)
+
+repo = DatabricksRepo(cfg)
+
+df = load_crop_data()
 
 for col in ["Temperature", "Humidity", "Rainfall", "Nitrogen", "Potassium", "Phosphorous"]:
     df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -138,6 +171,7 @@ def sensor():
                 "crop": crop,
                 "parameters": params
             })
+        repo.insert_sensor_reading(crop, params)
 
     return jsonify({"results": results})
 
