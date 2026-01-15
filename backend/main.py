@@ -54,18 +54,25 @@ cfg = DatabricksConfig(
 
 repo = DatabricksRepo(cfg)
 
-df = load_crop_data()
+raw_data = load_crop_data()
+df = pd.DataFrame(raw_data)
 
-for col in ["Temperature", "Humidity", "Rainfall", "Nitrogen", "Potassium", "Phosphorous"]:
-    df[col] = pd.to_numeric(df[col], errors='coerce')
+feature_cols = [
+    "temperature",
+    "humidity",
+    "rainfall",
+    "nitrogen",
+    "potassium",
+    "phosphorous",
+]
 
+for col in feature_cols:
+    df[col] = pd.to_numeric(df[col], errors="coerce")
 
-df.dropna(subset=["Temperature", "Humidity", "Rainfall", "Nitrogen", "Potassium", "Phosphorous"], inplace=True)
+df.dropna(subset=feature_cols + ["crop_type"], inplace=True)
 
-
-feature_cols = ["Temperature", "Humidity", "Rainfall", "Nitrogen", "Potassium", "Phosphorous"]
 X = df[feature_cols]
-y = df["Crop Type"]
+y = df["crop_type"]
 
 label_encoder = LabelEncoder()
 y_encoded = label_encoder.fit_transform(y)
@@ -73,14 +80,13 @@ y_encoded = label_encoder.fit_transform(y)
 knn = KNeighborsClassifier(n_neighbors=3)
 knn.fit(X, y_encoded)
 
-
-avg_by_crop = df.groupby("Crop Type")[feature_cols].mean()
+avg_by_crop = df.groupby("crop_type")[feature_cols].mean()
 
 average_values = avg_by_crop.to_dict(orient="index")
 
 minmax_values = (
-    df.groupby("Crop Type")[feature_cols]
-      .agg(['min', 'max'])
+    df.groupby("crop_type")[feature_cols]
+      .agg(["min", "max"])
 )
 
 app = Flask(__name__)
@@ -107,7 +113,7 @@ def suggest():
     except KeyError as e:
         return jsonify({"error": f"Missing field: {str(e)}"}), 400
 
-    distances, indices = knn.kneighbors([values], n_neighbors=5)  # ask for more neighbors
+    distances, indices = knn.kneighbors([values], n_neighbors=5)
 
     top_crops_encoded = y_encoded[indices[0]]
     top_crops = label_encoder.inverse_transform(top_crops_encoded)
@@ -127,51 +133,54 @@ def average():
     """Return a JSON of average characteristics per crop."""
     return jsonify(average_values)
 
-@app.route("/sensor", methods=["POST"])
+@app.route("/sensor", methods=["GET"])
 def sensor():
     """
-    Expects JSON:
-    {
-        "count": <number of crops>,
-        "crops": ["Wheat", "Rice", ...]
-    }
+    Returns the latest sensor reading per device from Databricks.
 
-    Returns random realistic values for each crop:
+    Response:
     {
         "results": [
-            { "crop": "Wheat", "parameters": {...} },
+            {
+                "event_time": "...",
+                "device_id": "...",
+                "parameters": {
+                    "Temperature": ...,
+                    "Humidity": ...,
+                    "Rainfall": ...,
+                    "Nitrogen": ...,
+                    "Potassium": ...,
+                    "Phosphorous": ...
+                },
+                "source": "...",
+                "ingestion_time": "..."
+            },
             ...
         ]
     }
     """
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "Missing or invalid JSON body"}), 400
+    try:
+        rows = repo.get_latest_sensor_readings_per_device()
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch sensor data: {str(e)}"}), 500
 
-    count = data.get("count")
-    crops = data.get("crops")
-
-    if not isinstance(count, int) or count <= 0:
-        return jsonify({"error": "'count' must be a positive integer"}), 400
-
-    if not isinstance(crops, list) or not all(isinstance(c, str) for c in crops):
-        return jsonify({"error": "'crops' must be a list of strings"}), 400
-
-
-    valid = [c for c in crops if c in minmax_values.index]
-
-
-    selected = valid[:count]
-
-    results = []
-    for crop in selected:
-        params = generate_random_parameters(crop)
-        if params:
-            results.append({
-                "crop": crop,
-                "parameters": params
-            })
-        repo.insert_sensor_reading(crop, params)
+    results = [
+        {
+            "event_time": row.get("event_time"),
+            "device_id": row.get("device_id"),
+            "parameters": {
+                "Temperature": row.get("temperature"),
+                "Humidity": row.get("humidity"),
+                "Rainfall": row.get("rainfall"),
+                "Nitrogen": row.get("nitrogen"),
+                "Potassium": row.get("potassium"),
+                "Phosphorous": row.get("phosphorous"),
+            },
+            "source": row.get("source"),
+            "ingestion_time": row.get("ingestion_time"),
+        }
+        for row in rows
+    ]
 
     return jsonify({"results": results})
 

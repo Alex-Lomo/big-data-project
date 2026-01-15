@@ -147,29 +147,3 @@ class DatabricksRepo:
                 rows = cur.fetchall()
                 colnames = [d[0] for d in cur.description] if cur.description else []
                 return [dict(zip(colnames, row)) for row in rows]
-
-    def insert_sensor_reading(self, crop, params):
-        try:
-            conn = self._connect()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                INSERT INTO catalog.schema.sensor_readings_curated
-                (crop_type, temperature, humidity, rainfall, nitrogen, potassium, phosphorous)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    crop,
-                    params["Temperature"],
-                    params["Humidity"],
-                    params["Rainfall"],
-                    params["Nitrogen"],
-                    params["Potassium"],
-                    params["Phosphorous"],
-                )
-            )
-
-            conn.commit()
-        except Exception as e:
-            print(f"Failed to insert sensor data for {crop}: {e}")
